@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>MY 포트폴리오</title>
+
+<!-- PWA 설정: 바탕화면 앱으로 설치 가능하게 함 -->
+<meta name="theme-color" content="#020617">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MY 포트폴리오">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- 파비콘 (금색 지갑 이모지) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💰%3C/text%3E%3C/svg%3E">
+
+<!-- 인라인 manifest (별도 파일 없이도 PWA 설치 가능) -->
+<link rel="manifest" href='data:application/manifest+json,{"name":"MY 포트폴리오","short_name":"포트폴리오","start_url":".","display":"standalone","background_color":"%23020617","theme_color":"%23020617","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23020617%27/%3E%3Ctext x=%2750%27 y=%2775%27 font-size=%2760%27 text-anchor=%27middle%27%3E💰%3C/text%3E%3C/svg%3E","sizes":"512x512","type":"image/svg+xml"}]}'>
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- React 18 -->
+<script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+
+<!-- Recharts -->
+<script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+
+<!-- Babel -->
+<script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+
+<style>
+  html, body { margin: 0; padding: 0; background: #020617; overflow-x: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+                 'Pretendard', 'Malgun Gothic', '맑은 고딕', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #020617; color: #fbbf24; font-size: 14px; z-index: 9999;
+  }
+  /* 창이 좁을 때 살짝 조정 */
+  @media (max-width: 500px) {
+    .compact-hide { display: none !important; }
+  }
+  /* 스크롤바 예쁘게 */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+
+<div id="loading">대시보드를 불러오는 중…</div>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+const {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area, CartesianGrid, BarChart, Bar
+} = Recharts;
+
+// ──────────────────────────────────────────────────────────
+// 아이콘
+// ──────────────────────────────────────────────────────────
+const Icon = ({ children, size = 16, className = '', ...rest }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size}
+       viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+       className={className} {...rest}>{children}</svg>
+);
+const I_TrendUp   = (p) => <Icon {...p}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></Icon>;
+const I_TrendDown = (p) => <Icon {...p}><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></Icon>;
+const I_Refresh   = (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></Icon>;
+const I_Wallet    = (p) => <Icon {...p}><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/><path d="M16 12h2"/></Icon>;
+const I_Eye       = (p) => <Icon {...p}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></Icon>;
+const I_EyeOff    = (p) => <Icon {...p}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></Icon>;
+const I_Lock      = (p) => <Icon {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></Icon>;
+const I_Clock     = (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></Icon>;
+const I_Check     = (p) => <Icon {...p}><polyline points="20 6 9 17 4 12"/></Icon>;
+const I_X         = (p) => <Icon {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></Icon>;
+const I_Pie       = (p) => <Icon {...p}><path d="M21 12A9 9 0 1 1 12 3v9z"/></Icon>;
+const I_Line      = (p) => <Icon {...p}><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></Icon>;
+const I_External  = (p) => <Icon {...p}><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></Icon>;
+const I_Sparkle   = (p) => <Icon {...p}><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></Icon>;
+const I_Download  = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></Icon>;
+const I_Minimize  = (p) => <Icon {...p}><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></Icon>;
+const I_Maximize  = (p) => <Icon {...p}><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></Icon>;
+
+// ──────────────────────────────────────────────────────────
+// 초기 데이터 (4월 23일 종가)
+// ──────────────────────────────────────────────────────────
+const INITIAL_HOLDINGS = [
+  { id: '000660', ticker: '000660', name: 'SK하이닉스',              type: '국내주식', shares: 12,  avgPrice: 966500, currentPrice: 1226000, color: '#f43f5e' },
+  { id: '005930', ticker: '005930', name: '삼성전자',                type: '국내주식', shares: 52,  avgPrice: 199087, currentPrice: 225000,  color: '#3b82f6' },
+  { id: '381170', ticker: '381170', name: 'TIGER 미국테크TOP10',     type: '해외 ETF', shares: 117, avgPrice: 31643,  currentPrice: 32200,   color: '#f59e0b' },
+  { id: '446770', ticker: '446770', name: 'ACE 글로벌반도체TOP4 Plus', type: '해외 ETF', shares: 57,  avgPrice: 44854,  currentPrice: 68500,   color: '#10b981' },
+  { id: '490090', ticker: '490090', name: 'TIGER 미국AI빅테크10',    type: '해외 ETF', shares: 100, avgPrice: 12105,  currentPrice: 16250,   color: '#a855f7' },
+];
+
+// ──────────────────────────────────────────────────────────
+// 유틸
+// ──────────────────────────────────────────────────────────
+const fmtKRW = (n) => new Intl.NumberFormat('ko-KR').format(Math.round(n || 0));
+const fmtPct = (n) => (n >= 0 ? '+' : '') + (n || 0).toFixed(2) + '%';
+const fmtKRWCompact = (n) => {
+  const v = Math.abs(n);
+  if (v >= 100000000) return (n / 100000000).toFixed(2) + '억';
+  if (v >= 10000)     return (n / 10000).toFixed(1) + '만';
+  return fmtKRW(n);
+};
+const fmtTime = (iso) => {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return '-'; }
+};
+const profitColor = (v) => v > 0 ? '#f43f5e' : v < 0 ? '#3b82f6' : '#94a3b8';
+const profitBg    = (v) => v > 0 ? 'rgba(244, 63, 94, 0.08)' : v < 0 ? 'rgba(59, 130, 246, 0.08)' : 'rgba(148, 163, 184, 0.08)';
+const naverURL = (ticker) => ticker.length === 6
+  ? `https://m.stock.naver.com/domestic/stock/${ticker}/total`
+  : `https://m.stock.naver.com/item/${ticker}/total`;
+
+const Store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+
+// ──────────────────────────────────────────────────────────
+// 창 너비 감지 훅 (컴팩트 모드 판단)
+// ──────────────────────────────────────────────────────────
+function useWindowWidth() {
+  const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000);
+  useEffect(() => {
+    const onR = () => setW(window.innerWidth);
+    window.addEventListener('resize', onR);
+    return () => window.removeEventListener('resize', onR);
+  }, []);
+  return w;
+}
+
+// ──────────────────────────────────────────────────────────
+// 메인
+// ──────────────────────────────────────────────────────────
+function Dashboard() {
+  const width = useWindowWidth();
+  const isCompact = width < 500;
+  const isMini = width < 360;
+
+  const [holdings, setHoldings] = useState(INITIAL_HOLDINGS);
+  const [history, setHistory]   = useState([]);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [hideAmounts, setHideAmounts] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [priceChanges, setPriceChanges] = useState({});
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  // 모드 감지 (앱으로 설치된 상태인지)
+  useEffect(() => {
+    const isPWA = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+    setIsStandalone(isPWA);
+  }, []);
+
+  // 초기 로딩
+  useEffect(() => {
+    const h = Store.get('mystock:holdings');
+    if (h) try { const p = JSON.parse(h); if (Array.isArray(p) && p.length) setHoldings(p); } catch {}
+    const hist = Store.get('mystock:history');
+    if (hist) try { const p = JSON.parse(hist); if (Array.isArray(p)) setHistory(p); } catch {}
+    const t = Store.get('mystock:lastUpdate');
+    if (t) setLastUpdate(t);
+  }, []);
+
+  const persist = (H, hist, t) => {
+    if (H)    Store.set('mystock:holdings', JSON.stringify(H));
+    if (hist) Store.set('mystock:history', JSON.stringify(hist));
+    if (t)    Store.set('mystock:lastUpdate', t);
+  };
+
+  const totals = useMemo(() => {
+    const cost  = holdings.reduce((s, h) => s + h.avgPrice * h.shares, 0);
+    const value = holdings.reduce((s, h) => s + h.currentPrice * h.shares, 0);
+    const profit = value - cost;
+    const pct = cost > 0 ? (profit / cost) * 100 : 0;
+    return { cost, value, profit, pct };
+  }, [holdings]);
+
+  const allocation = useMemo(() => holdings.map(h => ({
+    name: h.name, value: h.currentPrice * h.shares, color: h.color
+  })).filter(a => a.value > 0), [holdings]);
+
+  const profitByStock = useMemo(() => holdings.map(h => {
+    const profit = (h.currentPrice - h.avgPrice) * h.shares;
+    const pct = h.avgPrice > 0 ? ((h.currentPrice - h.avgPrice) / h.avgPrice) * 100 : 0;
+    return {
+      name: h.name.length > 8 ? h.name.slice(0, 8) + '…' : h.name,
+      fullName: h.name, profit, pct: Number(pct.toFixed(2)),
+      color: profitColor(profit),
+    };
+  }), [holdings]);
+
+  const startEdit = (h) => { setEditingId(h.id); setEditValue(String(h.currentPrice)); };
+  const saveEdit = () => {
+    const v = Number(editValue.replace(/[,\s]/g, ''));
+    if (!Number.isFinite(v) || v <= 0) { setEditingId(null); return; }
+    const updated = holdings.map(h => h.id === editingId ? { ...h, currentPrice: v } : h);
+    setHoldings(updated);
+    persist(updated, null, null);
+    setEditingId(null);
+  };
+
+  const applyBulkUpdate = (newPrices) => {
+    const changes = {};
+    const updated = holdings.map(h => {
+      const np = Number(newPrices[h.id]);
+      if (!Number.isFinite(np) || np <= 0) return h;
+      if (np !== h.currentPrice) changes[h.id] = np > h.currentPrice ? 'up' : 'down';
+      return { ...h, currentPrice: np };
+    });
+    const now = new Date().toISOString();
+    const newTotal = updated.reduce((s, h) => s + h.currentPrice * h.shares, 0);
+    const newCost  = updated.reduce((s, h) => s + h.avgPrice * h.shares, 0);
+    const newHistory = [...history, { t: now, total: newTotal, cost: newCost }].slice(-200);
+
+    setHoldings(updated);
+    setHistory(newHistory);
+    setLastUpdate(now);
+    setPriceChanges(changes);
+    persist(updated, newHistory, now);
+    setShowBulkModal(false);
+    setTimeout(() => setPriceChanges({}), 2500);
+  };
+
+  const resetHistory = () => {
+    if (!window.confirm('기록을 모두 삭제할까요?')) return;
+    setHistory([]);
+    Store.set('mystock:history', JSON.stringify([]));
+  };
+
+  const containerPad = isMini ? 'px-3 py-3' : isCompact ? 'px-4 py-4' : 'px-4 sm:px-6 py-6';
+  const sectionPad = isMini ? 'p-3' : isCompact ? 'p-4' : 'p-5 sm:p-6';
+
+  return (
+    <div className="min-h-screen text-slate-100 pb-20" style={{
+      background: 'radial-gradient(ellipse at top, #0f172a 0%, #020617 50%, #000 100%)'
+    }}>
+      {/* 헤더 */}
+      <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-slate-800/60">
+        <div className={`max-w-5xl mx-auto ${isMini ? 'px-3 py-3' : 'px-4 sm:px-6 py-4'} flex items-center justify-between`}>
+          <div className="flex items-center gap-2">
+            <div className={`${isMini ? 'w-7 h-7' : 'w-8 h-8'} rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20`}>
+              <I_Wallet size={isMini ? 14 : 16} className="text-slate-950" />
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-medium">Private</div>
+              <div className={`${isMini ? 'text-xs' : 'text-sm'} font-semibold text-slate-100 -mt-0.5`}>MY 포트폴리오</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {!isStandalone && !isCompact && (
+              <button onClick={() => setShowInstallHelp(true)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">
+                <I_Download size={12}/>앱으로 설치
+              </button>
+            )}
+            <button onClick={() => setHideAmounts(v => !v)} className="p-1.5 rounded-lg hover:bg-slate-800/60" aria-label="금액 숨기기">
+              {hideAmounts ? <I_EyeOff size={14} className="text-slate-400"/> : <I_Eye size={14} className="text-slate-400"/>}
+            </button>
+            <button onClick={() => setShowBulkModal(true)}
+                    className={`flex items-center gap-1 ${isMini ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 ${isMini ? 'text-[11px]' : 'text-xs'} font-bold shadow-lg shadow-amber-500/20 active:scale-95`}>
+              <I_Refresh size={12}/>{isMini ? '갱신' : '가격 업데이트'}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className={`max-w-5xl mx-auto ${containerPad} space-y-4`}>
+
+        {/* 히어로 */}
+        <section className="relative overflow-hidden rounded-2xl border border-slate-800/60" style={{
+          background: 'linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(2,6,23,0.95) 100%)'
+        }}>
+          <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-20 blur-3xl" style={{
+            background: totals.profit >= 0
+              ? 'radial-gradient(circle, #f43f5e 0%, transparent 70%)'
+              : 'radial-gradient(circle, #3b82f6 0%, transparent 70%)'
+          }} />
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-400/30 to-transparent" />
+
+          <div className={`relative ${sectionPad}`}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[10px] uppercase tracking-[0.25em] text-slate-500 font-medium">Total Valuation</div>
+              <div className="flex items-center gap-1 text-[9px] text-slate-500">
+                <I_Clock size={10}/>{lastUpdate ? fmtTime(lastUpdate) : '미갱신'}
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className={`num ${isMini ? 'text-3xl' : isCompact ? 'text-4xl' : 'text-5xl sm:text-6xl'} font-bold tracking-tight text-slate-50`} style={{ fontFamily: 'Georgia, serif' }}>
+                {hideAmounts ? '•••••' : (isMini ? fmtKRWCompact(totals.value) : fmtKRW(totals.value))}
+              </span>
+              <span className={`${isMini ? 'text-sm' : 'text-lg'} font-medium text-slate-400`}>원</span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <div className={`inline-flex items-center gap-1 ${isMini ? 'px-2 py-1 text-[11px]' : 'px-3 py-1.5 text-sm'} rounded-full font-bold`}
+                   style={{ color: profitColor(totals.profit), backgroundColor: profitBg(totals.profit) }}>
+                {totals.profit > 0 ? <I_TrendUp size={isMini ? 10 : 14}/> : totals.profit < 0 ? <I_TrendDown size={isMini ? 10 : 14}/> : null}
+                {hideAmounts ? '••' : (totals.profit >= 0 ? '+' : '') + (isMini ? fmtKRWCompact(totals.profit) : fmtKRW(totals.profit))}원
+              </div>
+              <div className={`inline-flex items-center ${isMini ? 'px-2 py-1 text-[11px]' : 'px-3 py-1.5 text-sm'} rounded-full font-bold`}
+                   style={{ color: profitColor(totals.profit), backgroundColor: profitBg(totals.profit) }}>
+                {fmtPct(totals.pct)}
+              </div>
+            </div>
+
+            {!isMini && (
+              <div className="mt-4 pt-4 border-t border-slate-800/60 grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-slate-500 font-medium">매입원가</div>
+                  <div className="num mt-0.5 text-sm font-semibold text-slate-300">{hideAmounts ? '•••••' : fmtKRW(totals.cost)}원</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-slate-500 font-medium">보유 종목</div>
+                  <div className="num mt-0.5 text-sm font-semibold text-slate-300">{holdings.length}종목</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 추이 차트 (미니 모드에서는 숨김) */}
+        {!isMini && (
+          <section className={`rounded-2xl border border-slate-800/60 bg-slate-900/40 ${sectionPad}`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <I_Line size={14} className="text-amber-400"/>
+                <h2 className="text-xs font-bold text-slate-200">포트폴리오 추이</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-slate-500">{history.length}개</span>
+                {history.length > 0 && (
+                  <button onClick={resetHistory} className="text-[9px] text-slate-500 hover:text-rose-400 underline">초기화</button>
+                )}
+              </div>
+            </div>
+
+            {history.length < 2 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <I_Sparkle size={24} className="text-slate-700 mb-2"/>
+                <div className="text-xs text-slate-400">
+                  <span className="text-amber-400 font-semibold">가격 업데이트</span>를 2번 이상 누르면 그래프가 그려져요
+                </div>
+              </div>
+            ) : (
+              <div className={`${isCompact ? 'h-48' : 'h-56'} -mx-2`}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={history.map(h => ({ time: fmtTime(h.t), 평가금액: h.total, 매입원가: h.cost }))}>
+                    <defs>
+                      <linearGradient id="gradV" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.35}/>
+                        <stop offset="100%" stopColor="#fbbf24" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false}/>
+                    <XAxis dataKey="time" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false}/>
+                    <YAxis tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false}
+                           tickFormatter={(v) => (v / 10000).toFixed(0) + '만'}
+                           domain={['dataMin - 100000', 'dataMax + 100000']} width={40}/>
+                    <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
+                             labelStyle={{ color: '#94a3b8', fontSize: 10 }}
+                             formatter={(v) => [fmtKRW(v) + '원', '']}/>
+                    <Line type="monotone" dataKey="매입원가" stroke="#475569" strokeWidth={1.5} strokeDasharray="4 4" dot={false}/>
+                    <Area type="monotone" dataKey="평가금액" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gradV)" dot={{ fill: '#fbbf24', r: 2 }} activeDot={{ r: 4 }}/>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 보유 종목 */}
+        <section className="rounded-2xl border border-slate-800/60 bg-slate-900/40 overflow-hidden">
+          <div className={`${sectionPad} pb-2 flex items-center justify-between`}>
+            <h2 className="text-xs font-bold text-slate-200">보유 종목</h2>
+            <span className="text-[9px] text-slate-500">현재가 탭 → 수정</span>
+          </div>
+
+          <div className="divide-y divide-slate-800/60">
+            {holdings.map(h => {
+              const value  = h.currentPrice * h.shares;
+              const cost   = h.avgPrice * h.shares;
+              const profit = value - cost;
+              const pct    = cost > 0 ? (profit / cost) * 100 : 0;
+              const change = priceChanges[h.id];
+              return (
+                <div key={h.id} className={`${isMini ? 'px-3 py-2.5' : 'px-4 sm:px-6 py-3'} hover:bg-slate-900/60 transition-colors`}>
+                  <div className="flex items-start gap-2">
+                    <div className="w-0.5 h-9 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: h.color }}/>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className={`font-semibold ${isMini ? 'text-xs' : 'text-sm'} text-slate-100 truncate`}>{h.name}</div>
+                          <div className="text-[9px] text-slate-500 mt-0.5 flex items-center gap-1">
+                            <span className="num">{h.ticker}</span>
+                            <span className="text-slate-700">·</span>
+                            <span>{h.shares}주</span>
+                            <a href={naverURL(h.ticker)} target="_blank" rel="noopener"
+                               className="ml-0.5 text-amber-500/70 hover:text-amber-400" title="네이버 금융">
+                              <I_External size={10}/>
+                            </a>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className={`num ${isMini ? 'text-xs' : 'text-sm'} font-bold text-slate-100`}>
+                            {hideAmounts ? '•••••' : (isMini ? fmtKRWCompact(value) : fmtKRW(value))}
+                          </div>
+                          <div className="text-[10px] font-bold mt-0.5" style={{ color: profitColor(profit) }}>
+                            {hideAmounts ? '••' : (profit >= 0 ? '+' : '') + (isMini ? fmtKRWCompact(profit) : fmtKRW(profit))} ({fmtPct(pct)})
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between text-[10px]">
+                        <div className="text-slate-500">평단 <span className="num text-slate-400">{fmtKRW(h.avgPrice)}</span></div>
+                        {editingId === h.id ? (
+                          <div className="flex items-center gap-1">
+                            <input autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)}
+                                   onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                                   className="w-20 px-1.5 py-0.5 rounded bg-slate-800 text-slate-100 text-[10px] font-mono border border-amber-500/50 focus:outline-none"/>
+                            <button onClick={saveEdit} className="p-0.5 rounded bg-amber-500 text-slate-950"><I_Check size={10}/></button>
+                            <button onClick={() => setEditingId(null)} className="p-0.5 rounded bg-slate-700 text-slate-300"><I_X size={10}/></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => startEdit(h)}
+                                  className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-all num font-semibold ${
+                                    change === 'up'   ? 'bg-rose-500/20 text-rose-400' :
+                                    change === 'down' ? 'bg-blue-500/20 text-blue-400' :
+                                    'text-slate-300 hover:bg-slate-800'
+                                  }`}>
+                            {change === 'up'   && <I_TrendUp size={9}/>}
+                            {change === 'down' && <I_TrendDown size={9}/>}
+                            {fmtKRW(h.currentPrice)}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 차트 섹션 (컴팩트 모드에서는 숨김) */}
+        {!isCompact && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <section className={`rounded-2xl border border-slate-800/60 bg-slate-900/40 ${sectionPad}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <I_Pie size={14} className="text-amber-400"/>
+                <h2 className="text-xs font-bold text-slate-200">자산 배분</h2>
+              </div>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={allocation} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={2} stroke="none">
+                      {allocation.map((a, i) => <Cell key={i} fill={a.color}/>)}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
+                             formatter={(v, n) => [fmtKRW(v) + '원', n]}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-2 space-y-1">
+                {allocation.map((a, i) => {
+                  const pct = totals.value > 0 ? (a.value / totals.value) * 100 : 0;
+                  return (
+                    <div key={i} className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: a.color }}/>
+                        <span className="text-slate-400 truncate">{a.name}</span>
+                      </div>
+                      <span className="num text-slate-300 font-semibold">{pct.toFixed(1)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className={`rounded-2xl border border-slate-800/60 bg-slate-900/40 ${sectionPad}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <I_TrendUp size={14} className="text-amber-400"/>
+                <h2 className="text-xs font-bold text-slate-200">종목별 수익률</h2>
+              </div>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={profitByStock} layout="vertical" margin={{ left: 0, right: 16 }}>
+                    <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" horizontal={false}/>
+                    <XAxis type="number" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => v + '%'}/>
+                    <YAxis type="category" dataKey="name" tick={{ fill: '#94a3b8', fontSize: 9 }} axisLine={false} tickLine={false} width={80}/>
+                    <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
+                             formatter={(v, _n, p) => [v + '% (' + fmtKRW(p.payload.profit) + '원)', p.payload.fullName]}/>
+                    <Bar dataKey="pct" radius={[0, 6, 6, 0]}>
+                      {profitByStock.map((p, i) => <Cell key={i} fill={p.color}/>)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* 안내 */}
+        {!isMini && (
+          <section className="flex items-start gap-2 p-3 rounded-xl bg-slate-900/40 border border-slate-800/60">
+            <I_Lock size={12} className="text-amber-400 flex-shrink-0 mt-0.5"/>
+            <div className="text-[10px] text-slate-400 leading-relaxed">
+              <span className="text-slate-200 font-semibold">나만 보는 대시보드</span> · 브라우저에만 저장 · 
+              {!isStandalone && (
+                <button onClick={() => setShowInstallHelp(true)} className="text-amber-400 hover:underline ml-1">
+                  💡 바탕화면 앱으로 설치하기
+                </button>
+              )}
+              {isStandalone && <span className="text-emerald-400 ml-1">✓ 앱 모드 실행 중</span>}
+            </div>
+          </section>
+        )}
+      </main>
+
+      {/* 모달들 */}
+      {showBulkModal && <BulkUpdateModal holdings={holdings} onCancel={() => setShowBulkModal(false)} onApply={applyBulkUpdate}/>}
+      {showInstallHelp && <InstallHelpModal onClose={() => setShowInstallHelp(false)}/>}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// 가격 업데이트 모달
+// ──────────────────────────────────────────────────────────
+function BulkUpdateModal({ holdings, onCancel, onApply }) {
+  const [prices, setPrices] = useState(() => {
+    const init = {};
+    holdings.forEach(h => init[h.id] = String(h.currentPrice));
+    return init;
+  });
+
+  const handleApply = () => {
+    const out = {};
+    Object.keys(prices).forEach(k => out[k] = Number(String(prices[k]).replace(/[,\s]/g, '')));
+    onApply(out);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
+      <div className="w-full sm:max-w-lg bg-slate-900 sm:rounded-2xl rounded-t-2xl border border-slate-800 max-h-[92vh] flex flex-col">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <div className="text-[9px] uppercase tracking-wider text-amber-400 font-bold">Update</div>
+            <div className="text-sm font-bold text-slate-100 mt-0.5">현재가 일괄 입력</div>
+          </div>
+          <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
+            <I_X size={16}/>
+          </button>
+        </div>
+
+        <div className="p-4 overflow-y-auto flex-1">
+          <div className="text-[10px] text-slate-400 mb-3 leading-relaxed">
+            🔗 각 종목의 <span className="text-amber-400 font-semibold">"네이버"</span> 버튼으로 시세 확인 후 입력 → "전체 적용" 클릭
+          </div>
+
+          <div className="space-y-2">
+            {holdings.map(h => (
+              <div key={h.id} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="w-0.5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: h.color }}/>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold text-slate-200 truncate">{h.name}</div>
+                      <div className="text-[9px] text-slate-500">현재 {fmtKRW(h.currentPrice)}원 · {h.shares}주</div>
+                    </div>
+                  </div>
+                  <a href={naverURL(h.ticker)} target="_blank" rel="noopener"
+                     className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[9px] font-semibold hover:bg-amber-500/20">
+                    <I_External size={9}/>네이버
+                  </a>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input type="text" inputMode="numeric" value={prices[h.id] || ''}
+                         onChange={(e) => setPrices(p => ({ ...p, [h.id]: e.target.value.replace(/[^0-9]/g, '') }))}
+                         className="flex-1 px-2.5 py-1.5 rounded-md bg-slate-800 text-slate-100 text-xs num font-semibold border border-slate-700 focus:outline-none focus:border-amber-500"
+                         placeholder="새 현재가"/>
+                  <span className="text-[10px] text-slate-500">원</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-slate-800 flex gap-2">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">
+            취소
+          </button>
+          <button onClick={handleApply} className="flex-1 py-2.5 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 text-xs font-bold shadow-lg active:scale-95">
+            전체 적용
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// 설치 도움말 모달
+// ──────────────────────────────────────────────────────────
+function InstallHelpModal({ onClose }) {
+  const [tab, setTab] = useState('chrome');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <div className="text-[9px] uppercase tracking-wider text-amber-400 font-bold">Install</div>
+            <div className="text-base font-bold text-slate-100 mt-0.5">바탕화면 앱으로 만들기</div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400">
+            <I_X size={18}/>
+          </button>
+        </div>
+
+        <div className="px-5 pt-4 flex gap-2">
+          {[['chrome', '🌐 크롬/엣지'], ['mobile', '📱 모바일']].map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      tab === k ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                    }`}>{label}</button>
+          ))}
+        </div>
+
+        <div className="p-5 text-slate-300 text-xs leading-relaxed space-y-3">
+          {tab === 'chrome' && (
+            <>
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <div className="text-amber-400 font-bold text-xs mb-1">💡 비유로 이해하기</div>
+                <div className="text-[11px] text-slate-300">
+                  "웹사이트인 척 하는 앱"을 "진짜 앱"으로 변신시켜요. 바탕화면 아이콘 생성 → 클릭 시 브라우저 주소창 없이 작은 창으로만 실행!
+                </div>
+              </div>
+
+              <div>
+                <div className="font-bold text-slate-100 mb-2">크롬 브라우저에서:</div>
+                <ol className="space-y-2 pl-4 list-decimal text-[11px]">
+                  <li>브라우저 오른쪽 위 <b className="text-amber-400">⋮ 메뉴</b> 클릭</li>
+                  <li>"<b className="text-amber-400">전송, 저장, 공유</b>" 또는 "<b className="text-amber-400">저장 및 공유</b>" 클릭</li>
+                  <li>"<b className="text-amber-400">페이지를 앱으로 설치</b>" 선택 (또는 주소창 오른쪽의 📲 설치 아이콘)</li>
+                  <li>"<b className="text-amber-400">설치</b>" 확인 → 바탕화면에 아이콘 생성 완료! ✨</li>
+                </ol>
+              </div>
+
+              <div>
+                <div className="font-bold text-slate-100 mb-2">엣지 브라우저에서:</div>
+                <ol className="space-y-2 pl-4 list-decimal text-[11px]">
+                  <li>오른쪽 위 <b className="text-amber-400">⋯ 메뉴</b> 클릭</li>
+                  <li>"<b className="text-amber-400">앱</b>" → "<b className="text-amber-400">이 사이트를 앱으로 설치</b>"</li>
+                  <li>이름 확인 후 설치</li>
+                </ol>
+              </div>
+
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <div className="text-emerald-400 font-bold text-xs mb-1">✓ 설치 후 할 수 있는 것</div>
+                <ul className="text-[11px] text-slate-300 space-y-1 pl-3">
+                  <li>• 바탕화면 아이콘 더블클릭 → 바로 실행</li>
+                  <li>• 창 크기 자유롭게 조절 (작은 메모창처럼!)</li>
+                  <li>• 작업표시줄에 고정 가능</li>
+                  <li>• 시작프로그램에 등록 가능 (부팅 시 자동 실행)</li>
+                  <li>• 인터넷 끊겨도 저장된 데이터는 그대로!</li>
+                </ul>
+              </div>
+
+              <div className="p-3 rounded-lg bg-sky-500/10 border border-sky-500/20">
+                <div className="text-sky-400 font-bold text-xs mb-1">🎯 항상 위에 띄우기</div>
+                <div className="text-[11px] text-slate-300">
+                  PWA 자체로는 "항상 위" 기능이 없어요. 대신 <b>PowerToys</b>(무료, MS 공식)의 "Always On Top" 기능을 설치하면 <b>Win + Ctrl + T</b>로 어떤 창이든 위에 고정할 수 있어요!
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'mobile' && (
+            <>
+              <div>
+                <div className="font-bold text-slate-100 mb-2">📱 아이폰 (Safari):</div>
+                <ol className="space-y-2 pl-4 list-decimal text-[11px]">
+                  <li>하단 <b className="text-amber-400">공유 버튼 ⬆️</b> 탭</li>
+                  <li>"<b className="text-amber-400">홈 화면에 추가</b>" 선택</li>
+                  <li>이름 확인 후 추가 → 홈 화면 아이콘 완성!</li>
+                </ol>
+              </div>
+
+              <div>
+                <div className="font-bold text-slate-100 mb-2">📱 안드로이드 (크롬):</div>
+                <ol className="space-y-2 pl-4 list-decimal text-[11px]">
+                  <li>오른쪽 위 <b className="text-amber-400">⋮ 메뉴</b> 탭</li>
+                  <li>"<b className="text-amber-400">홈 화면에 추가</b>" 또는 "<b className="text-amber-400">앱 설치</b>"</li>
+                  <li>확인 → 홈 화면 아이콘 완성!</li>
+                </ol>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-slate-800">
+          <button onClick={onClose} className="w-full py-2.5 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 text-xs font-bold">
+            알겠어요!
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// 렌더링
+// ──────────────────────────────────────────────────────────
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<Dashboard/>);
+document.getElementById('loading').style.display = 'none';
+</script>
+
+</body>
+</html>
